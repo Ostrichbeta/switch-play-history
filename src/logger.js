@@ -92,4 +92,32 @@ winston.loggers.add("accessLogger", {
 
 winston.loggers.get("loggerLogger").info("Logger for access module initialized.");
 
+winston.loggers.add("databaseLogger", {
+    level: 'debug', 
+    transports: [
+        new winston.transports.Console({
+            format: combine(
+                winston.format(info => ({ ...info, level: info.level.toUpperCase() }))(),
+                timestamp({format: "MM/DD hh:mm:ss.SS A"}), label({label: "DB"}), colorize({all: true}), myFormat, 
+            )
+        })
+    ]
+});
+
+winston.loggers.get("loggerLogger").info("Logger for database module initialized.");
+
+winston.loggers.add("securityLogger", {
+    level: 'debug', 
+    transports: [
+        new winston.transports.Console({
+            format: combine(
+                winston.format(info => ({ ...info, level: info.level.toUpperCase() }))(),
+                timestamp({format: "MM/DD hh:mm:ss.SS A"}), label({label: "SECURITY"}), colorize({all: true}), myFormat, 
+            )
+        })
+    ]
+});
+
+winston.loggers.get("loggerLogger").info("Logger for security module initialized.");
+
 module.exports.checkLog = checkLog;

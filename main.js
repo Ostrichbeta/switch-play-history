@@ -10,6 +10,7 @@ const winston = require("winston");
 const mainLogger = winston.loggers.get("mainLogger");
 
 const loginHash = require("./src/loginHash");
+const database = require("./src/database");
 
 const accessRouter = require("./src/access").router;
 
@@ -31,6 +32,8 @@ async function sleep(ms) {
 
     await logger.checkLog();
 
+    await database.readList();
+
     app.set('trust proxy', 1); // trust first proxy
     app.use(session({
         secret: crypto.randomUUID(),
@@ -42,6 +45,7 @@ async function sleep(ms) {
     }));
 
     app.use("/api", accessRouter);
+    app.use("/", express.static("public"));
     app.set('view engine', 'ejs'); // Use ejs to render statis pages
     app.use(bodyParser.json());       // to support JSON-encoded bodies
     app.use(bodyParser.urlencoded({     // to support URL-encoded bodies

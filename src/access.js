@@ -7,7 +7,12 @@ const bodyParser = require("body-parser");
 const axios = require("axios");
 const loginHash = require("./loginHash");
 
+const database = require("./database");
 const getIP = require("./security").getIP;
+const turnstileCheck = require("./security").turnstileCheck;
+
+let devFile = path.join(path.dirname(__dirname), '.env.dev');
+require('dotenv').config({ path: devFile });
 
 const winston = require("winston");
 const logger = winston.loggers.get("accessLogger");
@@ -18,12 +23,12 @@ router.use(bodyParser.urlencoded({     // to support URL-encoded bodies
 }));
 
 router.use(cors({
-    credentials: true,
-    origin: "http://localhost:9000",
-    exposedHeaders: ["set-cookie"],
+//    credentials: true,
+//    origin: "http://localhost:9000",
+//    exposedHeaders: ["set-cookie"],
 }));
 
-router.use("/getlink", getIP, async (req, res) => {
+router.use("/getlink", getIP, turnstileCheck, async (req, res) => {
     try {
         let hashData = await loginHash.generateChallengeLink();
         let authBody = {
@@ -54,7 +59,7 @@ router.use("/getlink", getIP, async (req, res) => {
     }
 });
 
-router.get("/getsessiontoken", getIP, async (req, res) => {
+router.get("/getsessiontoken", getIP, turnstileCheck, async (req, res) => {
     try {
         if (!(req.query.session_token_code !== undefined && req.query.session_token_code !== "" && req.query.session_token_code_verifier !== undefined && req.query.session_token_code_verifier !== "")) {
             logger.info(`User from ${res.locals.ip} requested /api/getsessiontoken got 403. (Too few arguments)`);
@@ -109,7 +114,7 @@ router.get("/getsessiontoken", getIP, async (req, res) => {
     }
 });
 
-router.get("/getaccesstoken", getIP, async (req, res) => {
+router.get("/getaccesstoken", getIP, turnstileCheck, async (req, res) => {
     try {
         if (!(req.query.session_token !== undefined && req.query.session_token !== "")) {
             logger.info(`User from ${res.locals.ip} requested /api/getaccesstoken got 403. (Too few arguments)`);
@@ -166,7 +171,7 @@ router.get("/getaccesstoken", getIP, async (req, res) => {
     }
 });
 
-router.get("/getme", getIP, async (req, res) => {
+router.get("/getme", getIP, turnstileCheck, async (req, res) => {
     try {
         if (!(req.query.access_token !== undefined && req.query.access_token !== "")) {
             logger.info(`User from ${res.locals.ip} requested /api/getme got 403. (Too few arguments)`);
@@ -219,7 +224,7 @@ router.get("/getme", getIP, async (req, res) => {
     }
 });
 
-router.get("/gethistory", getIP, async (req, res) => {
+router.get("/gethistory", getIP, turnstileCheck, async (req, res) => {
     try {
         if (!(req.query.access_token !== undefined && req.query.access_token !== "")) {
             logger.info(`User from ${res.locals.ip} requested /api/gethistory got 403. (Too few arguments)`);
@@ -268,7 +273,113 @@ router.get("/gethistory", getIP, async (req, res) => {
         });
         return;
     }
-})
+});
+
+router.post('/getgamedetail', getIP, turnstileCheck, async (req, res) => {
+    try {
+        if (!(req.body && req.body.titleIds && (req.body.titleIds instanceof Array))) {
+            logger.info(`User from ${res.locals.ip} requested /api/getgamedetail got 403. (Too few arguments)`);
+            res.status(403).json({
+                status: "failed",
+                reason: "Too few arguments"
+            });
+            return;
+        }
+
+        if (!(req.body.lang && ['zh', 'en', 'ja'].includes(req.body.lang))) {
+            logger.info(`User from ${res.locals.ip} requested /api/getgamedetail got 403. (Invalid language code)`);
+            res.status(403).json({
+                status: "failed",
+                reason: "Invalid language code"
+            });
+            return;
+        }
+
+        let detailList = []
+
+        for (const item of req.body.titleIds) {
+            let itemResult = await database.checkGameDetail(item, req.body.lang);
+            let result = {
+                titleId: item,
+                name: itemResult.status == "success" ? itemResult.result["name"] : "",
+                bannerUrl: itemResult.status == "success" ? itemResult.result["bannerUrl"] : "",
+                lang: itemResult.status == "success" ? itemResult["lang"] : "ja",
+            }
+            detailList.push(result);
+        }
+
+        logger.info(`User from ${res.locals.ip} requested /api/getgamedetail got 200.`);
+        res.status(200).json({
+            status: "success",
+            reason: "",
+            results: detailList,
+        });
+    } catch (error) {
+        logger.error(error.stack);
+        logger.info(`User from ${res.locals.ip} requested /api/getgamedetail got 500.`);
+        res.status(500).json({
+            status: "failed",
+            reason: "Internal server error"
+        });
+        return;
+    }
+});
+
+router.get("/verifyts", getIP, async (req, res) => {
+    try {
+        if (!(req.query.token)) {
+            logger.info(`User from ${res.locals.ip} requested /api/verifyts got 403. (No token)`);
+            res.status(403).json({
+                status: "failed",
+                reason: "No token"
+            });
+            return;
+        };
+
+        try {
+            const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+            let verificationResult = await axios.post(url, {
+                secret: process.env.TURNSTILE_SITE_SECRET,
+                response: req.query.token,
+                remoteip: res.locals.ip
+            });
+            if (verificationResult.status == 200 && verificationResult.data["success"] == true) {
+                req.session.verified = true;
+                req.session.expireat = Date.now() + 90000;
+                logger.info(`User from ${res.locals.ip} requested /api/verifyts got 200.`);
+                res.status(200).json({
+                    status: "success",
+                    reason: ""
+                });
+                return;
+            } else {
+                logger.info(`User from ${res.locals.ip} requested /api/verifyts got 403. (${verificationResult.data["error-codes"][0]})`);
+                res.status(403).json({
+                    status: "failed",
+                    reason: verificationResult.data["error-codes"][0]
+                });
+                return;
+            }
+        } catch (error) {
+            if (error.response) {
+                logger.info(`User from ${res.locals.ip} requested /api/verifyts got 403. (${error.response.data["error-codes"][0]})`);
+                res.status(403).json({
+                    status: "failed",
+                    reason: error.response.data["error-codes"][0]
+                });
+                return;
+            }
+        }
+    } catch (error) {
+        logger.error(error.stack);
+        logger.info(`User from ${res.locals.ip} requested /api/verifyts got 500.`);
+        res.status(500).json({
+            status: "failed",
+            reason: "Internal server error"
+        });
+        return;
+    }
+});
 
 module.exports.router = router;
 
