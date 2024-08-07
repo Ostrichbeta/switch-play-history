@@ -1,0 +1,3 @@
+[submodule "res/titledb"]
+	path = res/titledb
+	url = https://github.com/blawar/titledb.git
