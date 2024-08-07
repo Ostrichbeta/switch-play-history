@@ -23,9 +23,9 @@ router.use(bodyParser.urlencoded({     // to support URL-encoded bodies
 }));
 
 router.use(cors({
-//    credentials: true,
-//    origin: "http://localhost:9000",
-//    exposedHeaders: ["set-cookie"],
+    credentials: true,
+    origin: "http://localhost:9000",
+    exposedHeaders: ["set-cookie"],
 }));
 
 router.use("/getlink", getIP, turnstileCheck, async (req, res) => {
@@ -198,6 +198,7 @@ router.get("/getme", getIP, turnstileCheck, async (req, res) => {
                     userdata: {
                         nickname: axiosResult.data["nickname"],
                         country: axiosResult.data["country"],
+                        userAvatar: (axiosResult.data["mii"] != {} && axiosResult.data["mii"] !== undefined) ? `https://${axiosResult.data["mii"]["imageOrigin"]}/2.0.0/mii_images/${axiosResult.data["mii"]["id"]}/${axiosResult.data["mii"]["etag"]}.png?type=face&width=140&bgColor=F08F90FF` : undefined,
                     }
                 });
                 return;
@@ -304,6 +305,7 @@ router.post('/getgamedetail', getIP, turnstileCheck, async (req, res) => {
                 name: itemResult.status == "success" ? itemResult.result["name"] : "",
                 bannerUrl: itemResult.status == "success" ? itemResult.result["bannerUrl"] : "",
                 lang: itemResult.status == "success" ? itemResult["lang"] : "ja",
+                publisher: itemResult.status == "success" ? itemResult.result["publisher"] : "",
             }
             detailList.push(result);
         }
