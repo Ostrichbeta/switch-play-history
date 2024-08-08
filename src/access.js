@@ -246,11 +246,26 @@ router.get("/gethistory", getIP, turnstileCheck, async (req, res) => {
                 }
             });
             if (axiosResult.status && axiosResult.status == 200) {
+                let recentPlayed = {}
+                if (axiosResult.data["recentPlayHistories"] !== undefined && (axiosResult.data["recentPlayHistories"] instanceof Array)) {
+                    for (const item of axiosResult.data["recentPlayHistories"]) {
+                        if (item["dailyPlayHistories"] !== undefined && item["dailyPlayHistories"] instanceof Array) {
+                            for (const subitem of item["dailyPlayHistories"]) {
+                                if (recentPlayed[subitem["titleId"]] !== undefined && (typeof recentPlayed[subitem["titleId"]] == 'number')) {
+                                    recentPlayed[subitem["titleId"]] += subitem["totalPlayedMinutes"];
+                                } else {
+                                    recentPlayed[subitem["titleId"]] = subitem["totalPlayedMinutes"];
+                                }
+                            }
+                        }
+                    }
+                }
                 logger.info(`User from ${res.locals.ip} requested /api/gethistory got 200.`);
                 res.status(200).json({
                     status: "success",
                     reason: "",
-                    playHistories: axiosResult.data["playHistories"]
+                    playHistories: axiosResult.data["playHistories"],
+                    recentPlayed: recentPlayed
                 });
                 return;
             }
