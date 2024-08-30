@@ -145,7 +145,8 @@ router.get("/getaccesstoken", getIP, turnstileCheck, async (req, res) => {
                 res.status(200).json({
                     status: "success",
                     reason: "",
-                    access_token: axiosResult.data["access_token"]
+                    access_token: axiosResult.data["access_token"],
+                    expires_in: axiosResult.data["expires_in"]
                 });
                 return;
             }
