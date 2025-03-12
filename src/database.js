@@ -69,7 +69,10 @@ async function checkGameDetail(titleID, lang = 'en') {
 
     for (const [index, item] of querySequence.entries()) {
         for (const subitem of Object.keys(item)) {
-            if (item[subitem]["id"] == titleID) {
+            if (item[subitem]["id"] == undefined) {
+                continue;
+            }
+            if (item[subitem]["id"].toLowerCase() == titleID.toLowerCase()) {
                 queryResult['status'] = 'success';
                 queryResult['result'] = item[subitem];
                 queryResult['lang'] = queryLang[index];
